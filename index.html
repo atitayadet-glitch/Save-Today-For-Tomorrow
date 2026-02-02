@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Saving Planner</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+*{box-sizing:border-box}
+body{
+font-family:'Prompt',sans-serif;
+background:linear-gradient(135deg,#74ebd5,#9face6);
+min-height:100vh;
+margin:0;
+display:flex;
+justify-content:center;
+align-items:center;
+padding:15px;
+}
+.container{
+background:#fff;
+width:100%;
+max-width:420px;
+padding:20px;
+border-radius:20px;
+box-shadow:0 10px 30px rgba(0,0,0,.15);
+}
+h1{
+text-align:center;
+color:#4b4b8f;
+}
+.game-box{
+background:#f0f3ff;
+padding:15px;
+border-radius:15px;
+text-align:center;
+margin-bottom:20px;
+font-size:14px;
+}
+.progress-bar{
+background:#ddd;
+height:14px;
+border-radius:20px;
+overflow:hidden;
+margin-top:10px;
+}
+.progress{
+height:100%;
+width:0%;
+background:linear-gradient(90deg,#6c63ff,#74ebd5);
+transition:.4s;
+}
+label{font-size:14px}
+input,select{
+width:100%;
+padding:12px;
+margin:6px 0 15px;
+font-size:16px;
+border-radius:12px;
+border:1px solid #ccc;
+}
+button{
+width:100%;
+padding:14px;
+font-size:17px;
+border:none;
+border-radius:14px;
+background:#6c63ff;
+color:#fff;
+}
+.result{
+margin-top:20px;
+background:#f5f7ff;
+padding:15px;
+border-radius:14px;
+font-size:14px;
+}
+.invest{
+margin-top:12px;
+background:#fff;
+padding:12px;
+border-left:5px solid #6c63ff;
+border-radius:10px;
+}
+.invest-detail{
+margin-top:8px;
+font-size:13px;
+line-height:1.6;
+}
+.admin-link{
+display:block;
+text-align:center;
+margin-top:15px;
+color:#6c63ff;
+font-size:14px;
+text-decoration:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<!-- Gamification + User Count -->
+<div class="game-box">
+⭐ Points: <span id="points">0</span> |
+🏆 Level: <span id="level">1</span><br>
+<span id="badge">🎖 มือใหม่สายออม</span><br>
+👥 ผู้ใช้งานทั้งหมด: <span id="userCount">0</span> คน
+
+<div class="progress-bar">
+<div class="progress" id="progress"></div>
+</div>
+<small>ความคืบหน้าเป้าหมายการออม</small>
+</div>
+
+<h1>📊 ระบบวางแผนการออมเงิน</h1>
+
+<label>รายได้ต่อเดือน (บาท)</label>
+<input type="text" inputmode="numeric" id="income">
+
+<label>ค่าใช้จ่ายต่อเดือน (บาท)</label>
+<input type="text" inputmode="numeric" id="expense">
+
+<label>เป้าหมายเงินออม (บาท)</label>
+<input type="text" inputmode="numeric" id="goal">
+
+<label>ระดับความเสี่ยง</label>
+<select id="risk">
+<option value="low">ต่ำ</option>
+<option value="medium">ปานกลาง</option>
+<option value="high">สูง</option>
+</select>
+
+<button onclick="calculate()">คำนวณแผนการออม</button>
+
+<div class="result" id="result" style="display:none">
+<p id="saving"></p>
+<p id="months"></p>
+<div class="invest" id="investPlan"></div>
+<div class="invest-detail" id="investDetail"></div>
+</div>
+
+<!-- Link to Admin -->
+<a href="admin.html" class="admin-link">🔐 เข้าสู่หน้าเจ้าของระบบ</a>
+
+</div>
+
+<script>
+/* ================= นับจำนวนผู้ใช้งาน ================= */
+let userCount = localStorage.getItem("userCount");
+userCount = userCount ? Number(userCount) + 1 : 1;
+localStorage.setItem("userCount", userCount);
+document.getElementById("userCount").innerText = userCount.toLocaleString();
+
+/* ================= คอมม่าอัตโนมัติ ================= */
+function formatComma(val){
+val = val.replace(/,/g,'').replace(/\D/g,'');
+return val ? Number(val).toLocaleString() : '';
+}
+document.querySelectorAll("input[inputmode='numeric']").forEach(i=>{
+i.addEventListener("input",()=> i.value = formatComma(i.value));
+});
+function num(id){
+return Number(document.getElementById(id).value.replace(/,/g,''));
+}
+
+/* ================= Gamification ================= */
+let points = 0;
+let level = 1;
+
+function updateGame(saving,goal){
+points += 10;
+level = Math.floor(points/50)+1;
+document.getElementById("points").innerText = points;
+document.getElementById("level").innerText = level;
+
+let badge="🎖 มือใหม่สายออม";
+if(level>=3) badge="🥉 นักออมฝึกหัด";
+if(level>=5) badge="🥈 นักออมตัวจริง";
+if(level>=8) badge="🥇 ปรมาจารย์การเงิน";
+document.getElementById("badge").innerText = badge;
+
+let progress = Math.min((saving/goal)*100,100);
+document.getElementById("progress").style.width = progress+"%";
+}
+
+/* ================= เก็บข้อมูลผู้ใช้งาน ================= */
+// เก็บข้อมูลเพื่อใช้วิเคราะห์ในหน้า Admin Dashboard
+function saveUserData(income,expense,goal,risk){
+let users = JSON.parse(localStorage.getItem("users")) || [];
+let now = new Date();
+
+users.push({
+id: users.length + 1,
+date: now.toLocaleString(),
+income: income,
+expense: expense,
+goal: goal,
+risk: risk
+});
+
+localStorage.setItem("users", JSON.stringify(users));
+}
+
+/* ================= คำนวณ ================= */
+function calculate(){
+let income=num("income"),
+expense=num("expense"),
+goal=num("goal"),
+risk=document.getElementById("risk").value;
+
+let saving = income-expense;
+if(saving<=0 || !goal){
+alert("กรุณากรอกข้อมูลให้ถูกต้อง");
+return;
+}
+
+let months = Math.ceil(goal/saving);
+document.getElementById("saving").innerHTML =
+`💰 ออมต่อเดือน <b>${saving.toLocaleString()} บาท</b>`;
+document.getElementById("months").innerHTML =
+`⏳ ใช้เวลา <b>${months.toLocaleString()} เดือน</b>`;
+
+let plan={
+low:["🔵 ความเสี่ยงต่ำ","เงินฝาก 60%<br>พันธบัตร 30%<br>ตราสารหนี้ 10%<br>ผลตอบแทน 1–3%"],
+medium:["🟡 ความเสี่ยงปานกลาง","กองทุนผสม 40%<br>หุ้น 30%<br>ตราสารหนี้ 20%<br>เงินสด 10%<br>ผลตอบแทน 4–7%"],
+high:["🔴 ความเสี่ยงสูง","หุ้น/ETF 60%<br>หุ้นต่างประเทศ 20%<br>สินทรัพย์ทางเลือก 10%<br>เงินสด 10%<br>ผลตอบแทน 8–12%"]
+};
+
+document.getElementById("investPlan").innerHTML = plan[risk][0];
+document.getElementById("investDetail").innerHTML = plan[risk][1];
+document.getElementById("result").style.display="block";
+
+updateGame(saving,goal);
+
+// ป้องกันการเก็บข้อมูลซ้ำใน session เดียว
+if(!sessionStorage.getItem("saved")){
+saveUserData(income,expense,goal,risk);
+sessionStorage.setItem("saved","true");
+}
+}
+</script>
+
+</body>
+</html>
